@@ -218,6 +218,9 @@ To enable full interface analysis, this tool uses modified Chai-1 scripts (locat
 5.  **Output Collection:** Gathers results and logs from all executed model runs into the specified output directory.
 6.  **Report Generation:** Finally, the tool generates a comprehensive `OmniFold_Report.zip` file containing a detailed HTML report that compares key metrics (`pLDDT`, `ipSAE`, `pDockQ`) and includes interactive, shareable PAE viewers that link the 3D structure to the PAE matrix for in-depth analysis.
 
+## How to Cite
+"Omnifold: Protein structure prediction and design for high-throughput computing" [doi: https://doi.org/10.1101/2025.07.18.665594] is generously funded by Cornell University BRC Epigenomics Core Facility (RRID:SCR_021287), Penn State Institute for Computational and Data Sciences (RRID:SCR_025154) , Penn State University Center for Applications of Artificial Intelligence and Machine Learning to Industry Core Facility (AIMI) (RRID:SCR_022867) and supported by a gift to AIMI research from Dell Technologies.
+
 ## Acknowledgements
 - AlphaFold by DeepMind Technologies Limited
 - Boltz-2 by Passaro, Saro, et al. "Boltz-2: Towards Accurate and Efficient Binding Affinity Prediction" bioRxiv (2025)
