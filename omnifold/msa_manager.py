@@ -1,8 +1,21 @@
+"""MSA (Multiple Sequence Alignment) manager for the OmniFold pipeline.
+
+Coordinates MSA generation using either the AlphaFold3 data pipeline (via
+Singularity / conda) or ColabFold (via the public MMseqs2 API).  Generated
+alignments are converted into each model's native format:
+
+* **AlphaFold3** – A3M files (paired / unpaired)
+* **Boltz-2** – CSV with ``(key, sequence)`` rows
+* **Chai-1** – Parquet ``.aligned.pqt`` files
+
+Also handles template search and processing via ColabFold.
+"""
+
 import json
 import os
 import subprocess
 import logging
-import tempfile # For temporary FASTA
+import tempfile  # For temporary FASTA
 import gzip
 import io
 import requests

@@ -1,3 +1,10 @@
+"""GPU detection and assignment utilities for multi-model prediction jobs.
+
+Provides functions to detect available CUDA devices, assign GPUs to
+structure prediction models, and control GPU visibility via environment
+variables.
+"""
+
 import os
 import logging
 import subprocess

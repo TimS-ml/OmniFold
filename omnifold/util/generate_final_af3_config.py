@@ -1,3 +1,11 @@
+"""Generates the final AF3 JSON configuration with injected structural templates.
+
+Downloads template PDB structures from RCSB, extracts single-chain CIF files,
+aligns query sequences to template chains, and injects the resulting template
+mappings into an AF3 input JSON. Designed to run as a standalone script or
+be imported by the pipeline.
+"""
+
 import argparse
 import json
 import logging

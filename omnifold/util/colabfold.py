@@ -1,3 +1,11 @@
+"""ColabFold MSA generation and Chai-1 Parquet conversion utilities.
+
+Adapted from Chai Discovery's ColabFold integration. Provides functions to
+query the ColabFold MMseqs2 API for paired and unpaired MSAs, convert the
+resulting A3M alignments into Chai-1-compatible aligned Parquet files, and
+optionally retrieve structural template hits.
+"""
+
 from __future__ import annotations
 
 # Copyright (c) 2024 Chai Discovery, Inc.
@@ -39,6 +47,8 @@ __version__ = "1.0.0"
 
 @dataclass
 class Fasta:
+    """A single FASTA record with a header and sequence string."""
+
     header: str
     sequence: str
 
@@ -69,10 +79,26 @@ def read_fasta(path: Path) -> list[Fasta]:
 
 
 def hash_sequence(seq: str) -> str:
+    """Returns the SHA-256 hex digest of a sequence string.
+
+    Args:
+        seq: The sequence to hash.
+
+    Returns:
+        A 64-character hexadecimal hash string.
+    """
     return hashlib.sha256(seq.encode()).hexdigest()
 
 
 def expected_basename(query_sequence: str) -> str:
+    """Returns the expected Parquet filename for a query sequence.
+
+    Args:
+        query_sequence: The protein sequence (case-insensitive).
+
+    Returns:
+        A filename of the form ``<sha256_hash>.aligned.pqt``.
+    """
     return f"{hash_sequence(query_sequence.upper())}.aligned.pqt"
 
 
@@ -80,6 +106,8 @@ def expected_basename(query_sequence: str) -> str:
 
 
 class MSADataSource(str, Enum):
+    """Enumeration of MSA source databases used for Chai-1 Parquet metadata."""
+
     QUERY = "query"
     UNIREF90 = "uniref90"
     BFD_UNICLUST = "bfd_uniclust"

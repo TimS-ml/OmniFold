@@ -1,3 +1,10 @@
+"""Converters between AlphaFold3 JSON and Chai-1 FASTA input formats.
+
+Handles translation of AF3 input/data JSON files into the Chai-style
+FASTA format, including CCD-to-SMILES resolution via the RCSB PDB API,
+glycan ring detection, and generation of FASTA from ``JobInput`` objects.
+"""
+
 import json
 import requests
 import time

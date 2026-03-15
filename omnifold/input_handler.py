@@ -1,5 +1,11 @@
+"""Handles parsing of various input file formats for structure prediction jobs.
+
+Supports FASTA, AlphaFold3 JSON, and Boltz YAML input formats, converting
+them into a unified JobInput representation used by downstream pipeline stages.
+"""
+
 import os
-import json 
+import json
 import pyfastx
 from typing import List, Optional, Dict, Union, Any
 from pathlib import Path
@@ -53,8 +59,18 @@ class InputHandler:
             return None
 
     def _parse_fasta(self, file_path: Path, name_stem: str) -> Optional[JobInput]:
-        """
-        Parses a FASTA file.
+        """Parses a FASTA file into a JobInput object.
+
+        Reads sequences from a FASTA file, automatically assigns chain IDs,
+        and infers molecule types for each sequence using ``as_entity``.
+
+        Args:
+            file_path: Path to the FASTA file.
+            name_stem: Base name (without extension) used as the job name.
+
+        Returns:
+            A JobInput object containing all parsed sequences, or None if
+            parsing fails or no valid sequences are found.
         """
         sequences_info: List[SequenceInfo] = []
         chain_id_generator = idgen()
@@ -232,6 +248,20 @@ class InputHandler:
             return None
 
     def _parse_boltz_yaml(self, file_path: Path, name_stem: str) -> Optional[JobInput]:
+        """Parses a Boltz YAML configuration file into a JobInput object.
+
+        Extracts protein and ligand sequences from the Boltz YAML format,
+        handling both SMILES and CCD ligand representations. Also detects
+        pre-existing MSA references and constraint definitions.
+
+        Args:
+            file_path: Path to the Boltz YAML file.
+            name_stem: Base name (without extension) used as the job name.
+
+        Returns:
+            A JobInput object containing all parsed sequences and metadata,
+            or None if parsing fails or no valid sequences are found.
+        """
         sequences_info: List[SequenceInfo] = []
         has_msa_content = False
         constraints_val: Optional[List[Dict]] = None

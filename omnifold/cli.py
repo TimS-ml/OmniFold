@@ -1,3 +1,19 @@
+"""Command-line interface for the OmniFold ensemble prediction pipeline.
+
+Provides the ``omnifold`` entry-point that parses user arguments, validates
+paths and configuration, and delegates execution to the :class:`Orchestrator`.
+
+Supports two execution backends per model:
+
+* **Singularity** – via ``--alphafold3_sif_path`` / ``--boltz1_sif_path`` /
+  ``--chai1_sif_path``
+* **Conda** – via ``--alphafold3_conda_env`` / ``--boltz1_conda_env`` /
+  ``--chai1_conda_env``
+
+When both a SIF path and a conda env name are provided for the same model the
+conda backend takes precedence.
+"""
+
 import argparse
 import os
 import logging
@@ -82,19 +98,45 @@ def main():
         "--alphafold3_sif_path",
         type=str,
         default=None,
-        help="Path to the AlphaFold3 Singularity image (.sif file). Required if running AlphaFold3."
+        help="Path to the AlphaFold3 Singularity image (.sif file). Required if running AlphaFold3 via Singularity."
     )
     container_group.add_argument(
         "--boltz1_sif_path",
         type=str,
         default=None,
-        help="Path to the Boltz Singularity image (.sif file). Required if running Boltz."
+        help="Path to the Boltz Singularity image (.sif file). Required if running Boltz via Singularity."
     )
     container_group.add_argument(
         "--chai1_sif_path",
-        type=str, 
+        type=str,
         default=None,
-        help="Path to the Chai-1 Singularity image (.sif file). If provided, Chai-1 will be run."
+        help="Path to the Chai-1 Singularity image (.sif file). If provided, Chai-1 will be run via Singularity."
+    )
+
+    conda_group = parser.add_argument_group(
+        'Conda Environment Names',
+        description="Alternative to Singularity containers.  When a conda env "
+                    "name is provided for a model it takes precedence over the "
+                    "corresponding SIF path.  Each conda environment must have "
+                    "the model's dependencies pre-installed."
+    )
+    conda_group.add_argument(
+        "--alphafold3_conda_env",
+        type=str,
+        default=None,
+        help="Conda environment name for AlphaFold3 (e.g. 'af3'). Takes precedence over --alphafold3_sif_path."
+    )
+    conda_group.add_argument(
+        "--boltz1_conda_env",
+        type=str,
+        default=None,
+        help="Conda environment name for Boltz (e.g. 'boltz2'). Takes precedence over --boltz1_sif_path."
+    )
+    conda_group.add_argument(
+        "--chai1_conda_env",
+        type=str,
+        default=None,
+        help="Conda environment name for Chai-1 (e.g. 'chai1'). Takes precedence over --chai1_sif_path."
     )
 
     model_paths_group = parser.add_argument_group('Model Specific Paths')
@@ -432,10 +474,14 @@ def main():
     config = {
         "input_file": os.path.abspath(args.input_file) if args.input_file else None,
         "output_dir": os.path.abspath(args.output_dir),
-        
+
         "alphafold3_sif_path": os.path.abspath(args.alphafold3_sif_path) if args.alphafold3_sif_path else None,
         "boltz1_sif_path": os.path.abspath(args.boltz1_sif_path) if args.boltz1_sif_path else None,
         "chai1_sif_path": os.path.abspath(args.chai1_sif_path) if args.chai1_sif_path else None,
+
+        "alphafold3_conda_env": args.alphafold3_conda_env,
+        "boltz1_conda_env": args.boltz1_conda_env,
+        "chai1_conda_env": args.chai1_conda_env,
         
         "alphafold3_model_weights_dir": os.path.abspath(args.alphafold3_model_weights_dir) if args.alphafold3_model_weights_dir else None,
         "alphafold3_database_dir": os.path.abspath(args.alphafold3_database_dir) if args.alphafold3_database_dir else None,
@@ -504,34 +550,42 @@ def main():
         config["boltz1_sif_path"],
         config["chai1_sif_path"]
     ]
+    conda_envs_provided = [
+        config["alphafold3_conda_env"],
+        config["boltz1_conda_env"],
+        config["chai1_conda_env"]
+    ]
 
-    # Enforce at least one SIF **unless** we are in an MSA-only run that will use ColabFold (no container needed)
-    if not any(sifs_provided) and not msa_only_colabfold:
-        logger.error("No Singularity image file (.sif) provided. "
-                     "Please provide at least one SIF path for AlphaFold3, Boltz, or Chai-1 "
-                     "using --alphafold3_sif_path, --boltz1_sif_path, or --chai1_sif_path.")
+    # At least one model backend (SIF or conda env) must be provided,
+    # unless we are in an MSA-only run that will use ColabFold.
+    if not any(sifs_provided) and not any(conda_envs_provided) and not msa_only_colabfold:
+        logger.error("No execution backend provided. "
+                     "Please provide at least one SIF path (--alphafold3_sif_path, --boltz1_sif_path, --chai1_sif_path) "
+                     "or conda environment name (--alphafold3_conda_env, --boltz1_conda_env, --chai1_conda_env).")
         sys.exit(1)
 
     error_messages = []
 
-    # Check AlphaFold3 paths only if a SIF is needed / provided
+    # Check AlphaFold3 paths – SIF or conda env
+    af3_has_backend = config["alphafold3_sif_path"] or config["alphafold3_conda_env"]
     if config["alphafold3_sif_path"]:
         if not os.path.exists(config["alphafold3_sif_path"]):
             error_messages.append(f"AlphaFold3 SIF path does not exist: {config['alphafold3_sif_path']} (from --alphafold3_sif_path)")
+    if af3_has_backend:
         if not config["alphafold3_model_weights_dir"]:
-            error_messages.append("--alphafold3_model_weights_dir is required when --alphafold3_sif_path is provided.")
+            error_messages.append("--alphafold3_model_weights_dir is required when running AlphaFold3 (via SIF or conda env).")
         elif not os.path.exists(config["alphafold3_model_weights_dir"]):
             error_messages.append(f"AlphaFold3 model weights directory does not exist: {config['alphafold3_model_weights_dir']} (from --alphafold3_model_weights_dir)")
     else:
-        # In MSA-only mode with alphafold3 pipeline we MUST have the SIF and weights
+        # In MSA-only mode with alphafold3 pipeline we MUST have the SIF or conda env
         if args.msa_only and args.msa_method == "alphafold3":
-            error_messages.append("--msa_only with msa_method=alphafold3 requires --alphafold3_sif_path to be provided.")
+            error_messages.append("--msa_only with msa_method=alphafold3 requires --alphafold3_sif_path or --alphafold3_conda_env to be provided.")
 
-    # Check Boltz path if SIF is provided and we are not in msa_only_colabfold mode
+    # Check Boltz path if SIF is provided
     if config["boltz1_sif_path"] and not os.path.exists(config["boltz1_sif_path"]):
         error_messages.append(f"Boltz SIF path does not exist: {config['boltz1_sif_path']} (from --boltz1_sif_path)")
 
-    # Check Chai-1 path if SIF is provided and not in msa_only_colabfold mode
+    # Check Chai-1 path if SIF is provided
     if config["chai1_sif_path"] and not os.path.exists(config["chai1_sif_path"]):
         error_messages.append(f"Chai-1 SIF path does not exist: {config['chai1_sif_path']} (from --chai1_sif_path)")
 

@@ -1,3 +1,10 @@
+"""Utilities for extracting and inspecting A3M-format MSA files.
+
+Provides functions to extract per-chain unpaired MSAs from AlphaFold3
+data JSON files and to check whether an A3M file is a singleton
+(contains only the query sequence with no alignments).
+"""
+
 import json
 import logging
 import os

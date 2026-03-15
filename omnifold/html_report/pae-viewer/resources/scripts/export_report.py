@@ -39,7 +39,16 @@ def resolved_path(value: str) -> Path:
 
 
 def inline_css(project_root: Path, css_paths: List[Path]) -> str:
-    """Read CSS files, embed linked assets as data URIs, and return as a single string."""
+    """Read CSS files, embed linked assets as data URIs, and return as a single string.
+
+    Args:
+        project_root: Root directory of the PAE viewer project.
+        css_paths: Ordered list of CSS file paths to inline.
+
+    Returns:
+        Concatenated CSS content with all ``url()`` references replaced
+        by base64-encoded data URIs.
+    """
     style_content = []
     # This regex now includes a negative lookahead `(?!data:)` to skip existing data URIs.
     url_pattern = re.compile(r'url\((.*?)\)')
@@ -57,7 +66,16 @@ def inline_css(project_root: Path, css_paths: List[Path]) -> str:
 
 
 def embed_asset(match: re.Match, base_path: Path) -> str:
-    """Convert a matched file path in CSS to a data URI."""
+    """Convert a matched ``url()`` file path in CSS to a data URI.
+
+    Args:
+        match: Regex match object whose group(1) contains the raw URL.
+        base_path: Directory to resolve relative asset paths against.
+
+    Returns:
+        A ``url(...)`` string with the asset base64-encoded, or the
+        original ``url()`` if the asset cannot be resolved.
+    """
     url_raw = match.group(1)
     # Strip quotes before checking, per user feedback
     url_path = url_raw.strip("'\"")
@@ -82,7 +100,14 @@ def embed_asset(match: re.Match, base_path: Path) -> str:
 
 
 def inline_html_templates(templates_dir: Path) -> str:
-    """Embed all .tpl files into script tags."""
+    """Embed all ``.tpl`` template files as ``<script type="text/template">`` tags.
+
+    Args:
+        templates_dir: Directory containing ``.tpl`` template files.
+
+    Returns:
+        HTML string of concatenated ``<script>`` elements.
+    """
     template_elements = []
     for tpl_file in sorted(templates_dir.glob("*.tpl")):
         with open(tpl_file, "r", encoding="utf-8") as f:
@@ -95,7 +120,18 @@ def inline_html_templates(templates_dir: Path) -> str:
 
 
 def inline_js_libs(project_root: Path, lib_paths: List[Path]) -> str:
-    """Concatenate JS libraries, escaping literal </script> tags."""
+    """Concatenate JavaScript libraries into a single string.
+
+    Strips source-map comments and escapes literal ``</script>`` tags to
+    prevent premature HTML parsing termination.
+
+    Args:
+        project_root: Root directory of the PAE viewer project.
+        lib_paths: Ordered list of JS library file paths.
+
+    Returns:
+        Single string of concatenated, escaped JavaScript content.
+    """
     script_content = []
     for lib_path in lib_paths:
         with open(lib_path, "r", encoding="utf-8") as f:
@@ -110,7 +146,16 @@ def inline_js_libs(project_root: Path, lib_paths: List[Path]) -> str:
 
 
 def bundle_js_app(project_root: Path, entry_point: Path) -> str:
-    """Bundle the application's ES6 modules using esbuild."""
+    """Bundle the application's ES6 modules using esbuild.
+
+    Args:
+        project_root: Root directory of the PAE viewer project (used as
+            the working directory for esbuild).
+        entry_point: Path to the JavaScript entry-point file.
+
+    Returns:
+        Minified, bundled JavaScript content as a string.
+    """
     output_file = project_root / "dist" / "app.bundle.js"
     output_file.parent.mkdir(exist_ok=True)
 
@@ -210,9 +255,18 @@ def get_plddt_from_cif(cif_path: Path) -> list[float]:
     return plddts
 
 
-def prepare_chai_session_data(input_dir: Path, model_index: int) -> dict:
-    """
-    Loads and processes data from a Chai model output directory.
+def prepare_chai_session_data(input_dir: Path, model_index: int) -> dict[str, Any]:
+    """Load and process data from a Chai model output directory.
+
+    Args:
+        input_dir: Directory containing Chai model output files.
+        model_index: Zero-based index of the model to process.
+
+    Returns:
+        Session data dictionary ready to be embedded into the viewer HTML.
+
+    Raises:
+        FileNotFoundError: If any required input file is missing.
     """
     print(f"Processing Chai model output from: {input_dir} (model index: {model_index})")
 
@@ -264,9 +318,19 @@ def prepare_chai_session_data(input_dir: Path, model_index: int) -> dict:
     }
     return session_data
 
-def prepare_boltz_session_data(input_dir: Path, model_name: str, model_index: int) -> dict:
-    """
-    Loads and processes data from a Boltz model output directory.
+def prepare_boltz_session_data(input_dir: Path, model_name: str, model_index: int) -> dict[str, Any]:
+    """Load and process data from a Boltz model output directory.
+
+    Args:
+        input_dir: Path to the Boltz ``predictions`` directory.
+        model_name: Model name prefix used in Boltz output file names.
+        model_index: Zero-based index of the model to process.
+
+    Returns:
+        Session data dictionary ready to be embedded into the viewer HTML.
+
+    Raises:
+        FileNotFoundError: If any required input file is missing.
     """
     print(f"Processing Boltz model output from: {input_dir} (model: {model_name}, index: {model_index})")
 
@@ -359,10 +423,23 @@ def get_session_data(
 
 def create_standalone_html(
     project_root: Path,
-    session_data: dict,
-    output_handle: str
-):
-    """Assemble the final standalone HTML file."""
+    session_data: dict[str, Any],
+    output_handle: str,
+) -> Path:
+    """Assemble the final standalone HTML file.
+
+    Inlines all CSS, JavaScript, HTML templates, and session data into a
+    single portable HTML file.
+
+    Args:
+        project_root: Root directory of the PAE viewer project.
+        session_data: Dictionary of session data (structure, scores, etc.)
+            to embed as JSON.
+        output_handle: Base name used to construct the output filename.
+
+    Returns:
+        Path to the generated standalone HTML file.
+    """
     # 1. Read the main template
     with open(project_root / "index.html", "r", encoding="utf-8") as f:
         html_template = f.read()
@@ -452,7 +529,7 @@ def create_standalone_html(
     return output_path
 
 
-def main():
+def main() -> None:
     """Main function to parse arguments and run the export."""
     parser = argparse.ArgumentParser(
         description=__doc__,

@@ -1,4 +1,10 @@
-# omnifold/util/template_export.py
+"""Data schema for serializing structural template hit information.
+
+Provides the ``TemplateExport`` dataclass used to persist template hits
+(PDB ID, chain, CIF path, residue mapping, E-value) to disk via pickle
+for later injection into AF3 configuration files.
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping

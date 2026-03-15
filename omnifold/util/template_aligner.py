@@ -1,3 +1,10 @@
+"""Template sequence extraction and pairwise alignment utilities.
+
+Reads polymer sequences from mmCIF files using Gemmi and performs pairwise
+sequence alignment via Kalign-3 to build query-to-template residue index
+mappings used for structural template injection.
+"""
+
 import gemmi
 import re
 import subprocess
@@ -45,6 +52,23 @@ def build_mapping(aligned_query: str, aligned_template: str, q_start_offset: int
 
 
 def template_seq_and_index(cif_path: str, chain_id: str) -> Tuple[str, Dict[int, int]]:
+    """Extracts the one-letter sequence and residue index mapping from an mmCIF file.
+
+    Reads the first model of the structure, locates the specified chain,
+    and builds a mapping from 0-based polymer position to 0-based PDB
+    sequence numbering.
+
+    Args:
+        cif_path: Path to the mmCIF file.
+        chain_id: The chain identifier to extract (e.g., ``"A"``).
+
+    Returns:
+        A tuple of (one_letter_sequence, index_mapping) where index_mapping
+        maps polymer position (0-based) to PDB residue number (0-based).
+
+    Raises:
+        ValueError: If the structure, chain, or polymer cannot be read.
+    """
     st = gemmi.read_structure(cif_path)
     if not st:
         raise ValueError(f"Could not read structure from {cif_path}")
@@ -73,7 +97,22 @@ def template_seq_and_index(cif_path: str, chain_id: str) -> Tuple[str, Dict[int,
     return seq, mapping
 
 def kalign_pair(q_seq: str, t_seq: str) -> Tuple[str, str]:
-    """Return (aligned_query, aligned_template) using Kalign‑3 via stdin."""
+    """Aligns two sequences using Kalign-3 and returns the aligned pair.
+
+    Feeds the query and template sequences to Kalign via stdin in FASTA
+    format and parses the CLUSTAL-format output.
+
+    Args:
+        q_seq: The query sequence (ungapped).
+        t_seq: The template sequence (ungapped).
+
+    Returns:
+        A tuple of (aligned_query, aligned_template) with gap characters.
+
+    Raises:
+        subprocess.CalledProcessError: If Kalign exits with a non-zero status.
+        RuntimeError: If Kalign returns no aligned sequences.
+    """
     fasta = f">q\n{q_seq}\n>t\n{t_seq}\n"
 
     try:

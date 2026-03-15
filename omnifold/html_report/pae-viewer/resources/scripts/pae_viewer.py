@@ -28,6 +28,17 @@ from typing import Optional, Any
 
 
 def resolved_path(value: str) -> Path:
+    """Validate and resolve a file path from a CLI argument.
+
+    Args:
+        value: Raw string path provided on the command line.
+
+    Returns:
+        Resolved absolute :class:`~pathlib.Path`.
+
+    Raises:
+        argparse.ArgumentTypeError: If the path does not exist.
+    """
     path = Path(value).resolve()
 
     if not path.exists():
@@ -42,7 +53,16 @@ def load_pae_viewer(
     scores_path: Optional[Path] = None,
     crosslinks_path: Optional[Path] = None,
     port: int = 8000,
-):
+) -> None:
+    """Create a session file and open the PAE viewer in the default browser.
+
+    Args:
+        structure_path: Path to the structure file (PDB or CIF).
+        chain_labels: Semicolon-separated list of chain labels.
+        scores_path: Optional path to a JSON file containing PAE scores.
+        crosslinks_path: Optional path to a TSV file containing crosslinks.
+        port: Port of the local HTTP file server.
+    """
     data = get_session_data(structure_path, chain_labels, scores_path, crosslinks_path)
     session_path = create_session_file(structure_path.stem, data)
 
@@ -57,6 +77,18 @@ def get_session_data(
     scores_path: Optional[Path] = None,
     crosslinks_path: Optional[Path] = None,
 ) -> dict[str, Any]:
+    """Prepare the session data dictionary from input files.
+
+    Args:
+        structure_path: Path to the structure file.
+        chain_labels: Semicolon-separated chain label string.
+        scores_path: Optional path to a JSON scores file.
+        crosslinks_path: Optional path to a crosslinks TSV file.
+
+    Returns:
+        Dictionary suitable for JSON serialization and embedding in the
+        viewer HTML.
+    """
     data = {
         "structureFile": {
             "name": structure_path.name,
@@ -81,6 +113,14 @@ def get_session_data(
 
 
 def create_session_json_element(value: Any) -> str:
+    """Wrap a value as an HTML ``<script type="application/json">`` element.
+
+    Args:
+        value: JSON-serializable value to embed.
+
+    Returns:
+        HTML script element string containing the JSON data.
+    """
     return (
         '    <script type="application/json" id="session-data">\n'
         f"        {json.dumps(value)}\n"
@@ -89,6 +129,15 @@ def create_session_json_element(value: Any) -> str:
 
 
 def create_session_file(handle: str, data: dict[str, str]) -> Path:
+    """Create a timestamped HTML session file with embedded data.
+
+    Args:
+        handle: Short identifier used in the generated file name.
+        data: Session data dictionary to embed in the HTML template.
+
+    Returns:
+        Path to the newly created session HTML file.
+    """
     current_dir = Path(__file__).parent.resolve()
 
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")

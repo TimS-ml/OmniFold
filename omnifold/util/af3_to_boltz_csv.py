@@ -12,7 +12,15 @@ logger = logging.getLogger(__name__)
 TAX_RE = re.compile(r"(?:OX|TaxID)=(\d+)")
 LOWER  = str.maketrans('', '', 'abcdefghijklmnopqrstuvwxyz')
 
-def read_a3m(path):
+def read_a3m(path: Path):
+    """Yields (header, sequence) pairs from an A3M or gzipped A3M file.
+
+    Args:
+        path: Path to the A3M file (plain text or ``.gz`` compressed).
+
+    Yields:
+        Tuples of (header_line, concatenated_sequence) for each record.
+    """
     hdr, seq = None, []
     # Try to open with gzip first, then as plain text
     try:
@@ -36,11 +44,31 @@ def read_a3m(path):
         print(f"Warning: Could not read {path} (error: {e}), skipping.")
         return
 
-def extract_taxid(header):
+def extract_taxid(header: str) -> str | None:
+    """Extracts the taxonomy ID from an A3M header line.
+
+    Looks for ``OX=<digits>`` or ``TaxID=<digits>`` patterns.
+
+    Args:
+        header: The FASTA/A3M header line.
+
+    Returns:
+        The taxonomy ID string, or None if not found.
+    """
     m = TAX_RE.search(header)
     return m.group(1) if m else None
 
-def main(opts):
+def main(opts: argparse.Namespace) -> None:
+    """Runs the AF3-to-Boltz CSV conversion from parsed CLI arguments.
+
+    Reads paired and unpaired A3M files, combines them with pairing keys,
+    and writes per-chain CSV files in the format expected by Boltz-1.
+
+    Args:
+        opts: Parsed argument namespace containing ``chains``, ``msa_root``,
+            ``json_extracted_unpaired_msa_dir``, ``out``, ``max_paired``,
+            ``max_total``, and ``shuffle_paired``.
+    """
     chains = [c.strip() for c in opts.chains.split(",")]
     paired_by_tax = {}
     
@@ -151,11 +179,18 @@ if __name__ == "__main__":
 
 
 
-def convert_a3m_to_boltz_csv(protein_to_a3m_path: dict, output_csv_dir: str):
-    """
-    Converts paired and unpaired A3M files to a Boltz-compatible CSV format.
-    This implementation mimics the logic from Boltz's internal MSA processing,
-    using the paired MSA to derive pairing keys.
+def convert_a3m_to_boltz_csv(protein_to_a3m_path: dict, output_csv_dir: str) -> None:
+    """Converts paired and unpaired A3M files to Boltz-compatible CSV format.
+
+    Reads A3M MSA files referenced in ``protein_to_a3m_path``, assigns
+    pairing keys from the paired MSA row indices, deduplicates sequences,
+    and writes per-chain CSV files (``<chain_id>.csv``) with ``key,sequence``
+    columns.
+
+    Args:
+        protein_to_a3m_path: Dictionary with ``"unpaired"`` and ``"paired"``
+            keys, each mapping protein IDs to A3M file paths.
+        output_csv_dir: Directory where output CSV files will be written.
     """
     os.makedirs(output_csv_dir, exist_ok=True)
     

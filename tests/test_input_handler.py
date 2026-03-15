@@ -1,3 +1,11 @@
+"""Optimisation demo for minimum-cost CPU/GPU resource allocation.
+
+Rebuilds a linear regression on GPU seconds from raw execution-time
+records on NCSA Delta and formulates a mixed-integer linear program
+(MILP) with PuLP to choose an optimal CPU thread count per protein
+that minimises total Service Units while respecting a wall-clock limit.
+"""
+
 # -------------------------------------------
 # OPTIMISATION DEMO  ‑‑  min‑cost CPU/GPU allocation
 #
@@ -67,7 +75,15 @@ a_c, b_c = 0, 0                            # ignore CPU regression; use table
 cpu_lookup = { 255:3005, 493:2252, 985:3815 }  # use non‑random table
 print("CPU lookup table:", cpu_lookup)
 # fallback: linear fit if length not listed
-def cpu_seconds(L):
+def cpu_seconds(L: int) -> float:
+    """Look up or interpolate CPU seconds for a given protein length.
+
+    Args:
+        L: Protein sequence length in residues.
+
+    Returns:
+        Estimated CPU time in seconds.
+    """
     result = cpu_lookup.get(L, np.interp(L, df["length"], df["cpu_s"]))
     print(f"cpu_seconds({L}) = {result}")
     return result
@@ -83,7 +99,16 @@ x = {(i,k): pulp.LpVariable(f"x_{i}_{k}", cat="Binary")
 print("Decision variables created:", x)
 
 # objective  Σ SU
-def su_cost(i,k):
+def su_cost(i: int, k: int) -> float:
+    """Compute the total Service Unit cost for a given job and thread count.
+
+    Args:
+        i: Index into the *lengths* list identifying the protein.
+        k: Number of CPU threads to allocate.
+
+    Returns:
+        Total SU cost combining CPU and GPU contributions.
+    """
     L = lengths[i]
     cpu_sec = cpu_seconds(L)/k
     gpu_sec = a_g + b_g*L

@@ -99,6 +99,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: List[str] | None = None) -> None:  # noqa: D401 – imperative mood is fine here
+    """Entry point for ColabFold MSA generation.
+
+    Parses a FASTA file, submits sequences to the ColabFold MMseqs2 API,
+    and writes per-chain aligned Parquet files, an MSA manifest JSON, and
+    optionally raw A3M files and template hits to the output directory.
+
+    Args:
+        argv: Command-line arguments. Uses ``sys.argv`` when None.
+    """
     args = _build_arg_parser().parse_args(argv)
 
     # Ensure output directory is a Path object for consistent path handling
