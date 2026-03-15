@@ -1,3 +1,10 @@
+"""Core data definitions for the OmniFold pipeline.
+
+Defines the ``SequenceInfo`` and ``JobInput`` dataclasses that form the
+canonical internal representation of prediction jobs, along with helper
+functions for chain ID generation and molecule type inference.
+"""
+
 from dataclasses import dataclass, field
 from typing import List, Literal, Generator, Any, Optional, Dict, Tuple
 import string
@@ -14,6 +21,17 @@ SequenceType = Literal["protein", "rna", "dna", "ligand_smiles", "ligand_ccd", "
 
 @dataclass
 class SequenceInfo:
+    """Information about a single molecular entity (chain) in a prediction job.
+
+    Attributes:
+        original_name: The name as provided in the input file header.
+        sequence: The sequence string (amino acids, nucleotides, SMILES, or CCD code).
+        molecule_type: The classified type of this entity.
+        chain_id: The assigned chain identifier (e.g., ``"A"``, ``"B"``).
+        molecule_type_confidence: Confidence score for the inferred molecule type
+            (1.0 when explicitly specified, lower when heuristically guessed).
+    """
+
     original_name: str
     sequence: str
     molecule_type: SequenceType

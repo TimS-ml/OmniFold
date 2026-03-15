@@ -1,3 +1,16 @@
+"""Configuration generator for model-specific input files.
+
+Transforms the unified :class:`~omnifold.util.definitions.JobInput` into the
+native configuration format expected by each prediction model:
+
+* **AlphaFold3** – JSON with Pydantic validation
+* **Boltz-2** – YAML with sampling / potentials / output blocks
+* **Chai-1** – FASTA with ``>type|name=ID`` headers
+
+Also handles template injection for both AF3 (mmcifPath + index mapping) and
+Boltz (CIF path + chain/template IDs).
+"""
+
 import json
 import os
 import random

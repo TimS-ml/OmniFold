@@ -1,3 +1,11 @@
+"""Orchestrator module for the OmniFold ensemble prediction pipeline.
+
+This module contains the :class:`Orchestrator` class which coordinates the
+end-to-end workflow: input parsing, MSA generation, model configuration
+creation, parallel GPU execution of AlphaFold3 / Boltz-2 / Chai-1, and
+final HTML report generation.
+"""
+
 import os
 import logging
 import threading
@@ -225,12 +233,16 @@ class Orchestrator:
         # --- This point is the start of the GPU phase ---
         
         models_to_run_info = []
-        if "af3_config_path" in configs and self.config.get("alphafold3_sif_path"):
+        af3_has_backend = self.config.get("alphafold3_sif_path") or self.config.get("alphafold3_conda_env")
+        boltz_has_backend = self.config.get("boltz1_sif_path") or self.config.get("boltz1_conda_env")
+        chai_has_backend = self.config.get("chai1_sif_path") or self.config.get("chai1_conda_env")
+
+        if "af3_config_path" in configs and af3_has_backend:
             models_to_run_info.append(("alphafold3", configs["af3_config_path"], self.af3_output_dir))
-        if "boltz_config_path" in configs and self.config.get("boltz1_sif_path"):
+        if "boltz_config_path" in configs and boltz_has_backend:
             models_to_run_info.append(("boltz1", configs["boltz_config_path"], self.boltz_output_dir))
 
-        if "chai_config_path" in configs and self.config.get("chai1_sif_path"):
+        if "chai_config_path" in configs and chai_has_backend:
             chai_fasta_path = configs["chai_config_path"]
             if chai_fasta_path and Path(chai_fasta_path).is_file():
                 logger.info(f"Chai-1 will use FASTA: {chai_fasta_path}")

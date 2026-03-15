@@ -1,3 +1,10 @@
+"""Generate a self-contained HTML report comparing structural predictions.
+
+This module parses outputs from AlphaFold 3, Chai-1, and Boltz 2, computes
+confidence metrics and interface scores, and renders the results into a
+single interactive HTML report with embedded PAE viewers.
+"""
+
 import argparse
 import json
 import re
@@ -13,10 +20,18 @@ from jinja2 import Environment, FileSystemLoader
 
 # --- Data Parsing Functions ---
 
-def _get_plddt_and_chains_from_cif(cif_file: Path):
-    """
-    Extracts pLDDT for C-alpha atoms of standard amino acid residues and detailed chain and residue information from a CIF file.
-    Returns a tuple of (plddt_list, chain_info_dict, res_indices_list).
+def _get_plddt_and_chains_from_cif(cif_file: Path) -> tuple[list[float], dict[str, dict[str, Any]], list[int]]:
+    """Extract pLDDT scores, chain information, and residue indices from a CIF file.
+
+    Parses C-alpha atoms of standard amino acid residues to obtain per-residue
+    pLDDT values and chain metadata.
+
+    Args:
+        cif_file: Path to the mmCIF structure file.
+
+    Returns:
+        A tuple of (plddt_list, chain_info_dict, res_indices_list). Returns
+        empty collections if the file is missing or cannot be parsed.
     """
     plddts = []
     chain_info = {}
@@ -189,7 +204,15 @@ def parse_all_boltz_outputs(directory: Path) -> List[Dict[str, Any]]:
 
 # --- PAE Viewer Generation ---
 def generate_pae_viewer(model: Dict[str, Any], pae_output_dir: Path) -> str:
-    """Generates a standalone PAE viewer for a given model and returns the relative path."""
+    """Generate a standalone PAE viewer HTML for a given model.
+
+    Args:
+        model: Dictionary containing model metadata, paths, and chain info.
+        pae_output_dir: Directory where generated PAE viewer HTML files are stored.
+
+    Returns:
+        Relative path to the generated PAE viewer HTML, or ``"#"`` on failure.
+    """
     viewer_script_dir = Path(__file__).parent / "pae-viewer"
     export_script_path = viewer_script_dir / "resources" / "scripts" / "export_report.py"
     
@@ -258,8 +281,17 @@ def generate_pae_viewer(model: Dict[str, Any], pae_output_dir: Path) -> str:
 
 # --- ipSAE Execution and Parsing ---
 
-def run_and_parse_ipsae(model: Dict[str, Any]) -> Dict[str, Dict]:
-    """Runs ipsae.py on a model and parses the resulting text file."""
+def run_and_parse_ipsae(model: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
+    """Run the ipSAE scoring script on a model and parse results.
+
+    Args:
+        model: Dictionary containing model metadata including ``pae_path``
+            and ``cif_path``.
+
+    Returns:
+        Mapping of chain-pair keys (e.g. ``"A-B"``) to dicts with
+        ``'ipsae'`` and ``'pdockq'`` float scores. Empty dict on failure.
+    """
     if 'pae_path' not in model or 'cif_path' not in model: return {}
 
     script_path = Path(__file__).parent / "ipsae.py"
@@ -317,8 +349,22 @@ def run_and_parse_ipsae(model: Dict[str, Any]) -> Dict[str, Dict]:
 
 # --- Plotting and Main Logic ---
 
-def create_plddt_plot(all_models_data, best_model_names):
-    """Creates an interactive pLDDT plot using Plotly, with togglable traces for all models."""
+def create_plddt_plot(all_models_data: List[Dict[str, Any]], best_model_names: List[str]) -> str:
+    """Create an interactive pLDDT plot using Plotly.
+
+    Generates an HTML fragment containing a Plotly scatter chart with
+    togglable traces for every model. Best models are visible by default;
+    others are hidden behind the legend.
+
+    Args:
+        all_models_data: List of model dictionaries, each containing at
+            least ``'plddt'``, ``'name'``, and ``'chain_info'`` keys.
+        best_model_names: Names of the top-ranked models to display by
+            default.
+
+    Returns:
+        HTML string of the Plotly chart (without the full page wrapper).
+    """
     fig = go.Figure()
     colors = {"AlphaFold 3": "#0054a6", "Boltz 2": "#f58220", "Chai-1": "#2ca02c"}
 
@@ -407,10 +453,16 @@ def create_plddt_plot(all_models_data, best_model_names):
 
 # --- Main Logic ---
 
-def run_report_generation(base_output_dir: Path):
-    """
-    Generates the full HTML report and accompanying files.
-    This is the main entry point when called as a library function.
+def run_report_generation(base_output_dir: Path) -> None:
+    """Generate the full HTML report and accompanying files.
+
+    This is the main entry point when called as a library function. It
+    discovers model outputs under *base_output_dir*, computes metrics,
+    renders an HTML report, and packages everything into a ZIP archive.
+
+    Args:
+        base_output_dir: Root directory containing ``alphafold3/``,
+            ``boltz/``, and ``chai1/`` subdirectories with model outputs.
     """
     report_path = base_output_dir / "final_report.html"
     
@@ -501,7 +553,7 @@ def run_report_generation(base_output_dir: Path):
     print("✅ ZIP file created successfully.")
 
 
-def main():
+def main() -> None:
     """CLI entry point for generating the HTML report independently."""
     parser = argparse.ArgumentParser(description="Generate a self-contained HTML report from existing model outputs.")
     parser.add_argument("--output_dir", type=Path, required=True, help="The main output directory containing the model subdirectories (alphafold3, boltz, chai1).")

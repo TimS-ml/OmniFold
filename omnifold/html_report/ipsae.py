@@ -1,4 +1,18 @@
-#COPYRIGHT 
+"""Calculate ipSAE, pDockQ, pDockQ2, and LIS interface scores.
+
+This script computes pairwise protein-protein interaction scores from
+AlphaFold 2/3, Boltz 1, and Chai-1 PAE matrices and structure files.
+It is typically invoked as a CLI tool but also contains reusable helper
+functions for PTM calculation, PDB/CIF parsing, and chain classification.
+
+References:
+    - ipSAE: https://www.biorxiv.org/content/10.1101/2025.02.10.637595v1
+    - pDockQ: Bryant, Pozotti, and Eloffson (2022)
+    - pDockQ2: Zhu, Shenoy, Kundrotas, Elofsson (2023)
+    - LIS: Kim, Hu, Comjean, Rodiger, Mohr, Perrimon (2024)
+"""
+
+#COPYRIGHT
 # Lab of Dr. Roland Dunbrack
 # Fox Chase Cancer Center
 # 2025
@@ -110,12 +124,33 @@ OUT2 =             open(file2_path,'w')
 
 
 # Define the ptm and d0 functions
-def ptm_func(x,d0):
-    return 1.0/(1+(x/d0)**2.0)  
+def ptm_func(x: float, d0: float) -> float:
+    """Compute the PTM scoring function value.
+
+    Args:
+        x: Predicted aligned error value.
+        d0: Distance scaling parameter.
+
+    Returns:
+        PTM score in the range (0, 1].
+    """
+    return 1.0/(1+(x/d0)**2.0)
 ptm_func_vec=np.vectorize(ptm_func)  # vector version
 
 # Define the d0 functions for numbers and arrays; minimum value = 1.0; from Yang and Skolnick, PROTEINS: Structure, Function, and Bioinformatics 57:702–710 (2004)
-def calc_d0(L,pair_type):
+def calc_d0(L: float, pair_type: str) -> float:
+    """Compute the d0 distance normalization factor.
+
+    Based on Yang and Skolnick, PROTEINS 57:702-710 (2004). A minimum
+    value of 1.0 is used for protein pairs and 2.0 for nucleic acid pairs.
+
+    Args:
+        L: Number of residues (or equivalent length).
+        pair_type: ``'protein'`` or ``'nucleic_acid'``.
+
+    Returns:
+        The d0 normalization value (>= 1.0 for protein, >= 2.0 for NA).
+    """
     L=float(L)
     if L<27: L=27
     min_value=1.0
@@ -123,7 +158,16 @@ def calc_d0(L,pair_type):
     d0=1.24*(L-15)**(1.0/3.0) - 1.8
     return max(min_value, d0)
 
-def calc_d0_array(L,pair_type):
+def calc_d0_array(L: "np.ndarray | list | float", pair_type: str) -> np.ndarray:
+    """Vectorized version of :func:`calc_d0`.
+
+    Args:
+        L: Array (or scalar) of residue counts.
+        pair_type: ``'protein'`` or ``'nucleic_acid'``.
+
+    Returns:
+        NumPy array of d0 values with the same shape as *L*.
+    """
     # Convert L to a NumPy array if it isn't already one (enables flexibility in input types)
     L = np.array(L, dtype=float)
     L = np.maximum(27,L)
@@ -138,7 +182,16 @@ def calc_d0_array(L,pair_type):
 # Define the parse_atom_line function for PDB lines (by column) and mmCIF lines (split by white_space)
 # parsed_line = parse_atom_line(line)
 # line = "ATOM    123  CA  ALA A  15     11.111  22.222  33.333  1.00 20.00           C"
-def parse_pdb_atom_line(line):
+def parse_pdb_atom_line(line: str) -> dict[str, "int | float | str"]:
+    """Parse a single ATOM/HETATM line from a PDB-format file.
+
+    Args:
+        line: A PDB-format ATOM or HETATM record line.
+
+    Returns:
+        Dictionary with keys ``atom_num``, ``atom_name``, ``residue_name``,
+        ``chain_id``, ``residue_seq_num``, ``x``, ``y``, ``z``.
+    """
     atom_num = line[6:11].strip()
     atom_name = line[12:16].strip()
     residue_name = line[17:20].strip()
@@ -166,7 +219,21 @@ def parse_pdb_atom_line(line):
         'z': z
     }
 
-def parse_cif_atom_line(line,fielddict):
+def parse_cif_atom_line(line: str, fielddict: dict[str, int]) -> "dict[str, int | float | str] | None":
+    """Parse a single ATOM/HETATM line from an mmCIF-format file.
+
+    Handles both AlphaFold 3 and Boltz 1 column orderings by using the
+    provided *fielddict* to look up column positions.
+
+    Args:
+        line: A whitespace-delimited mmCIF ATOM/HETATM record.
+        fielddict: Mapping of ``_atom_site`` field names to their
+            zero-based column index in the current file.
+
+    Returns:
+        Dictionary with parsed atom data, or ``None`` for ligand atoms
+        (those without a residue sequence number).
+    """
     # for parsing AF3 and Boltz1 mmCIF files
     # ligands do not have residue numbers but modified residues do. Return "None" for ligand.
     # AF3 mmcif lines
@@ -262,7 +329,18 @@ def parse_cif_atom_line(line,fielddict):
 
 
 # Function for printing out residue numbers in PyMOL scripts
-def contiguous_ranges(numbers):
+def contiguous_ranges(numbers: "set[int] | list[int]") -> "str | None":
+    """Format a collection of integers as a compact range string.
+
+    Groups consecutive integers into ``start-end`` ranges joined by ``+``,
+    suitable for PyMOL residue selection syntax.
+
+    Args:
+        numbers: Set or list of integer residue numbers.
+
+    Returns:
+        Formatted range string, or ``None`` if *numbers* is empty.
+    """
     if not numbers:  # Check if the set is empty
         return
     
@@ -292,19 +370,58 @@ def contiguous_ranges(numbers):
     return(string)
 
 # Initializes a nested dictionary with all values set to 0
-def init_chainpairdict_zeros(chainlist):
+def init_chainpairdict_zeros(chainlist: np.ndarray) -> dict[str, dict[str, int]]:
+    """Initialize a nested dict of chain pairs with zero values.
+
+    Args:
+        chainlist: Array of unique chain identifiers.
+
+    Returns:
+        Nested dict ``{chain1: {chain2: 0, ...}, ...}`` excluding
+        self-pairs.
+    """
     return {chain1: {chain2: 0 for chain2 in chainlist if chain1 != chain2} for chain1 in chainlist}
 
 # Initializes a nested dictionary with NumPy arrays of zeros of a specified size
-def init_chainpairdict_npzeros(chainlist, arraysize):
+def init_chainpairdict_npzeros(chainlist: np.ndarray, arraysize: int) -> dict[str, dict[str, np.ndarray]]:
+    """Initialize a nested dict of chain pairs with zero-filled NumPy arrays.
+
+    Args:
+        chainlist: Array of unique chain identifiers.
+        arraysize: Length of each zero-initialized array.
+
+    Returns:
+        Nested dict ``{chain1: {chain2: np.zeros(arraysize), ...}, ...}``.
+    """
     return {chain1: {chain2: np.zeros(arraysize) for chain2 in chainlist if chain1 != chain2} for chain1 in chainlist}
 
 # Initializes a nested dictionary with empty sets.
-def init_chainpairdict_set(chainlist):
+def init_chainpairdict_set(chainlist: np.ndarray) -> dict[str, dict[str, set]]:
+    """Initialize a nested dict of chain pairs with empty sets.
+
+    Args:
+        chainlist: Array of unique chain identifiers.
+
+    Returns:
+        Nested dict ``{chain1: {chain2: set(), ...}, ...}``.
+    """
     return {chain1: {chain2: set() for chain2 in chainlist if chain1 != chain2} for chain1 in chainlist}
 
 
-def classify_chains(chains, residue_types):
+def classify_chains(chains: np.ndarray, residue_types: np.ndarray) -> dict[str, str]:
+    """Classify each chain as ``'protein'`` or ``'nucleic_acid'``.
+
+    A chain is classified as nucleic acid if any of its residues belong to
+    the standard nucleic acid residue set.
+
+    Args:
+        chains: Array of chain identifiers (one per residue).
+        residue_types: Array of three-letter residue names aligned with
+            *chains*.
+
+    Returns:
+        Mapping of chain ID to ``'protein'`` or ``'nucleic_acid'``.
+    """
     nuc_residue_set = {"DA", "DC", "DT", "DG", "A", "C", "U", "G"}
     chain_types = {}
     

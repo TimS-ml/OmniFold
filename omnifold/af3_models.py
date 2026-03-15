@@ -1,3 +1,11 @@
+"""Pydantic models for validating AlphaFold3 input JSON schema.
+
+Defines data models for proteins, RNA, DNA, and ligand chains along with
+validators for chain identifiers, sequence alphabets, post-translational
+modifications, and nucleotide modifications. These models are used to
+parse and validate AF3-format input files before pipeline execution.
+"""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -174,6 +182,17 @@ ccd: dict[str, str] = {
 
 # Validators and type aliases (adapted from af3/model.py)
 def check_chain_id(id_val: str) -> str:
+    """Validates that a chain identifier consists of uppercase letters only.
+
+    Args:
+        id_val: The chain identifier string to validate.
+
+    Returns:
+        The validated chain identifier.
+
+    Raises:
+        AssertionError: If the identifier contains non-uppercase or non-alpha characters.
+    """
     if not (id_val.isalpha() and id_val.isupper()): # AF3 seems to prefer uppercase, though examples show flexibility
         raise AssertionError(f"'{id_val}' is not a valid af3 chain identifier (must be uppercase letters).")
     return id_val
@@ -181,6 +200,17 @@ def check_chain_id(id_val: str) -> str:
 MolId = Annotated[str, AfterValidator(check_chain_id)]
 
 def check_prot_seq(seq: str) -> str:
+    """Validates and normalizes a protein sequence to uppercase.
+
+    Args:
+        seq: The protein amino acid sequence to validate.
+
+    Returns:
+        The uppercased protein sequence.
+
+    Raises:
+        AssertionError: If the sequence contains characters outside the protein alphabet.
+    """
     if not set(seq.upper()).issubset(prot_alphabet):
         raise AssertionError(f"'{seq[0:10]}...{seq[-10:]}' is not a valid protein sequence.")
     return seq.upper()
@@ -188,6 +218,17 @@ def check_prot_seq(seq: str) -> str:
 ProtSeq = Annotated[str, AfterValidator(check_prot_seq)]
 
 def check_rna_seq(seq: str) -> str:
+    """Validates and normalizes an RNA sequence to uppercase.
+
+    Args:
+        seq: The RNA nucleotide sequence to validate.
+
+    Returns:
+        The uppercased RNA sequence.
+
+    Raises:
+        AssertionError: If the sequence contains characters outside the RNA alphabet.
+    """
     if not set(seq.upper()).issubset(rna_alphabet):
         raise AssertionError(f"'{seq[0:10]}...{seq[-10:]}' is not a valid RNA sequence.")
     return seq.upper()
@@ -195,6 +236,17 @@ def check_rna_seq(seq: str) -> str:
 RNASeq = Annotated[str, AfterValidator(check_rna_seq)]
 
 def check_dna_seq(seq: str) -> str:
+    """Validates and normalizes a DNA sequence to uppercase.
+
+    Args:
+        seq: The DNA nucleotide sequence to validate.
+
+    Returns:
+        The uppercased DNA sequence.
+
+    Raises:
+        AssertionError: If the sequence contains characters outside the DNA alphabet.
+    """
     if not set(seq.upper()).issubset(dna_alphabet):
         raise AssertionError(f"'{seq[0:10]}...{seq[-10:]}' is not a valid DNA sequence.")
     return seq.upper()
@@ -204,6 +256,8 @@ DNASeq = Annotated[str, AfterValidator(check_dna_seq)]
 
 # Models (adapted from af3/model.py)
 class Template(BaseModel):
+    """Structural template for a protein chain with residue index mappings."""
+
     mmcif: str
     queryIndices: List[int]
     templateIndices: List[int]
@@ -215,10 +269,14 @@ class Template(BaseModel):
         return self
 
 class ProteinModification(BaseModel):
+    """A post-translational modification on a protein residue."""
+
     ptmType: str
     ptmPosition: int
 
 class ProteinChain(BaseModel):
+    """A protein chain with sequence, optional modifications, MSA data, and templates."""
+
     id: MolId | List[MolId]
     sequence: ProtSeq
     modifications: Optional[List[ProteinModification]] = None
@@ -246,13 +304,19 @@ class ProteinChain(BaseModel):
         return self
 
 class Protein(BaseModel):
+    """Wrapper model for a protein entity in the AF3 input schema."""
+
     protein: ProteinChain
 
 class NtModification(BaseModel):
+    """A nucleotide modification on an RNA or DNA base."""
+
     modificationType: str
     basePosition: int 
 
 class RNAChain(BaseModel):
+    """An RNA chain with sequence, optional modifications, and MSA data."""
+
     id: MolId | List[MolId]
     sequence: RNASeq
     modifications: Optional[List[NtModification]] = None
@@ -277,9 +341,13 @@ class RNAChain(BaseModel):
         return self
 
 class RNA(BaseModel):
+    """Wrapper model for an RNA entity in the AF3 input schema."""
+
     rna: RNAChain
 
 class DNAChain(BaseModel):
+    """A DNA chain with sequence, optional modifications, and MSA data."""
+
     id: MolId | List[MolId]
     sequence: DNASeq
     modifications: Optional[List[NtModification]] = None
@@ -304,9 +372,13 @@ class DNAChain(BaseModel):
         return self
 
 class DNA(BaseModel):
+    """Wrapper model for a DNA entity in the AF3 input schema."""
+
     dna: DNAChain
 
 class LigandMolecule(BaseModel):
+    """A ligand molecule defined by either CCD codes or a SMILES string."""
+
     id: MolId | List[MolId]
     ccdCodes: Optional[List[str]] = None
     smiles: Optional[str] = None
@@ -323,6 +395,8 @@ class LigandMolecule(BaseModel):
 
 
 class Ligand(BaseModel):
+    """Wrapper model for a ligand entity in the AF3 input schema."""
+
     ligand: LigandMolecule
 
 AtomSpec = Tuple[str, int, str] 
@@ -330,6 +404,8 @@ BondedAtomPair = Tuple[AtomSpec, AtomSpec]
 
 
 class Af3Input(BaseModel):
+    """Top-level model representing a complete AlphaFold3 input JSON document."""
+
     name: str
     modelSeeds: List[int]
     sequences: List[Protein | RNA | DNA | Ligand]
